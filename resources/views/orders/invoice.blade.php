@@ -7,40 +7,56 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'DejaVu Sans', sans-serif; font-size: 12px; color: #1a1a1a; background: #fff; }
         .container { max-width: 750px; margin: 0 auto; padding: 40px; }
-        .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #d97706; padding-bottom: 20px; margin-bottom: 30px; }
-        .store-name { font-size: 24px; font-weight: 800; color: #d97706; }
-        .store-tagline { font-size: 11px; color: #888; margin-top: 3px; }
-        .invoice-label { font-size: 28px; font-weight: 800; color: #1a1a1a; text-align: right; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #feee00; padding-bottom: 20px; margin-bottom: 30px; }
+        .store-name { font-size: 24px; font-weight: 900; color: #111; letter-spacing: -0.5px; }
+        .store-tagline { font-size: 11px; color: #666; margin-top: 3px; }
+        .invoice-label { font-size: 28px; font-weight: 900; color: #111; text-align: right; }
         .invoice-meta { text-align: right; color: #555; font-size: 11px; margin-top: 5px; }
         .section { margin-bottom: 25px; }
         .section-grid { display: flex; gap: 30px; }
         .section-col { flex: 1; }
-        .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 8px; }
+        .section-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: #666; margin-bottom: 8px; }
         .section-value { font-size: 12px; color: #1a1a1a; line-height: 1.8; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        thead tr { background: #fef3c7; }
-        thead th { padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #92400e; }
+        thead tr { background: #feee00; }
+        thead th { padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #111; }
         thead th:last-child { text-align: right; }
         tbody tr { border-bottom: 1px solid #f0f0f0; }
         tbody td { padding: 10px 12px; font-size: 12px; color: #333; }
         tbody td:last-child { text-align: right; font-weight: 600; }
         .totals { width: 260px; margin-left: auto; }
         .totals-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 12px; color: #555; }
-        .totals-row.grand { border-top: 2px solid #d97706; border-bottom: none; padding-top: 10px; font-size: 15px; font-weight: 800; color: #1a1a1a; }
-        .badge { display: inline-block; padding: 3px 10px; border-radius: 50px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-        .badge-cod { background: #fef3c7; color: #92400e; }
+        .totals-row.grand { border-top: 2px solid #feee00; border-bottom: none; padding-top: 10px; font-size: 15px; font-weight: 900; color: #111; }
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 50px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+        .badge-cod { background: #feee00; color: #111; }
         .badge-stripe { background: #ede9fe; color: #5b21b6; }
         .footer { margin-top: 40px; border-top: 1px solid #e5e5e5; padding-top: 20px; text-align: center; color: #aaa; font-size: 11px; }
-        .thank-you { text-align: center; background: #fef3c7; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
-        .thank-you p { font-size: 14px; font-weight: 700; color: #92400e; }
-        .thank-you span { font-size: 11px; color: #b45309; }
+        .thank-you { text-align: center; background: #fafafa; border-radius: 8px; border: 1px solid #eee; border-top: 3px solid #feee00; padding: 15px; margin-bottom: 20px; }
+        .thank-you p { font-size: 14px; font-weight: 800; color: #111; }
+        .thank-you span { font-size: 11px; color: #555; }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="header">
         <div>
-            <div class="store-name">📚 {{ config('bookstore.store_name') }}</div>
+            @php
+                $storeSettings = \App\Models\StoreSetting::first();
+                $base64Logo = null;
+                if($storeSettings && $storeSettings->logo_path) {
+                    $path = public_path('storage/' . $storeSettings->logo_path);
+                    if (file_exists($path)) {
+                        $type = pathinfo($path, PATHINFO_EXTENSION);
+                        $data = file_get_contents($path);
+                        $base64Logo = 'data:image/' . $type . ';base64,' . base64_encode($data);
+                    }
+                }
+            @endphp
+            @if($base64Logo)
+                <img src="{{ $base64Logo }}" alt="Logo" style="height: 38px; object-fit: contain; margin-bottom: 8px;">
+            @else
+                <div class="store-name">value<span style="color:#9ca3af;">deals</span></div>
+            @endif
             <div class="store-tagline">{{ config('bookstore.store_address') }}</div>
             <div class="store-tagline">{{ config('bookstore.store_email') }} | {{ config('bookstore.store_phone') }}</div>
         </div>

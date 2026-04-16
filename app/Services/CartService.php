@@ -94,12 +94,22 @@ class CartService
             'unit_price' => $cartItem->product->selling_price,
         ]);
 
+        $subtotal = $this->getCartTotal();
+        $discount = $this->getCouponDiscount($subtotal);
+        $shipping = $this->calculateShipping($subtotal);
+        $total    = $subtotal - $discount + $shipping;
+
         return [
             'success'         => true,
             'message'         => 'Cart updated.',
             'cart_count'      => $this->getCartCount(),
-            'item_subtotal'   => number_format($cartItem->fresh()->subtotal, 2),
-            'cart_total'      => number_format($this->getCartTotal(), 2),
+            'item_subtotal'   => number_format($cartItem->fresh()->subtotal, 0),
+            'cart_subtotal'   => number_format($subtotal, 0),
+            'cart_discount'   => number_format($discount, 0),
+            'cart_shipping'   => number_format($shipping, 0),
+            'cart_total'      => number_format($total, 0),
+            'shipping_raw'    => $shipping,
+            'threshold_gap'   => max(0, config('bookstore.free_shipping_threshold') - $subtotal),
             'currency_symbol' => config('bookstore.currency_symbol'),
         ];
     }
@@ -110,11 +120,21 @@ class CartService
         $this->authorizeCartItem($cartItem);
         $cartItem->delete();
 
+        $subtotal = $this->getCartTotal();
+        $discount = $this->getCouponDiscount($subtotal);
+        $shipping = $this->calculateShipping($subtotal);
+        $total    = $subtotal - $discount + $shipping;
+
         return [
             'success'         => true,
             'message'         => 'Item removed from cart.',
             'cart_count'      => $this->getCartCount(),
-            'cart_total'      => number_format($this->getCartTotal(), 2),
+            'cart_subtotal'   => number_format($subtotal, 0),
+            'cart_discount'   => number_format($discount, 0),
+            'cart_shipping'   => number_format($shipping, 0),
+            'cart_total'      => number_format($total, 0),
+            'shipping_raw'    => $shipping,
+            'threshold_gap'   => max(0, config('bookstore.free_shipping_threshold') - $subtotal),
             'currency_symbol' => config('bookstore.currency_symbol'),
         ];
     }
@@ -182,7 +202,7 @@ class CartService
     private function authorizeCartItem(CartItem $cartItem): void
     {
         $cart = $this->getOrCreateCart();
-        abort_if($cartItem->cart_id !== $cart->id, 403, 'Unauthorized.');
+        abort_if((int) $cartItem->cart_id !== (int) $cart->id, 403, 'Unauthorized.');
     }
 
     public function calculateShipping(float $subtotal, ?string $emirateSlug = null): float

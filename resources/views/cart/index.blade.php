@@ -89,9 +89,9 @@
                     <div class="cart-actions-row" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
                         {{-- Qty stepper --}}
                         <div style="display:flex;align-items:center;gap:8px;background:#f9fafb;border-radius:99px;padding:4px 8px;">
-                            <button class="qty-btn" onclick="updateCartItem({{ $item->id }}, {{ $item->quantity - 1 }})" aria-label="Decrease">−</button>
-                            <span id="qty-{{ $item->id }}" style="font-size:14px;font-weight:900;color:#111;min-width:20px;text-align:center;">{{ $item->quantity }}</span>
-                            <button class="qty-btn" onclick="updateCartItem({{ $item->id }}, {{ $item->quantity + 1 }})" aria-label="Increase">+</button>
+                            <button class="qty-btn" onclick="forceAdjustQty({{ $item->id }}, -1)" aria-label="Decrease">−</button>
+                            <span id="qty-{{ $item->id }}" data-qty="{{ $item->quantity }}" style="font-size:14px;font-weight:900;color:#111;min-width:20px;text-align:center;">{{ $item->quantity }}</span>
+                            <button class="qty-btn" onclick="forceAdjustQty({{ $item->id }}, 1)" aria-label="Increase">+</button>
                         </div>
 
                         {{-- Subtotal --}}
@@ -100,7 +100,7 @@
                         </span>
 
                         {{-- Remove --}}
-                        <button class="remove-btn" onclick="removeCartItem({{ $item->id }})" aria-label="Remove item">
+                        <button class="remove-btn" onclick="forceRemoveItem({{ $item->id }})" aria-label="Remove item">
                             <svg style="width:15px;height:15px;" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                             </svg>
@@ -160,13 +160,11 @@
                         </span>
                     </div>
 
-                    @if($shippingCost > 0 && $subtotal < config('bookstore.free_shipping_threshold'))
-                    <div style="background:#fffbeb;border-radius:10px;padding:10px 12px;border:1px solid #fde68a;">
+                    <div id="shipping-alert-box" style="display:{{ ($shippingCost > 0 && $subtotal < config('bookstore.free_shipping_threshold')) ? 'block' : 'none' }}; background:#fffbeb;border-radius:10px;padding:10px 12px;border:1px solid #fde68a;">
                         <p style="font-size:11px;color:#92400e;font-weight:600;margin:0;">
-                            Add <strong style="color:#000;">{{ config('bookstore.currency_symbol') }}{{ number_format(max(0, config('bookstore.free_shipping_threshold') - $subtotal), 0) }}</strong> more for FREE shipping! 🎁
+                            Add <strong id="shipping-gap-amount" style="color:#000;">{{ config('bookstore.currency_symbol') }}{{ number_format(max(0, config('bookstore.free_shipping_threshold') - $subtotal), 0) }}</strong> more for FREE shipping! 🎁
                         </p>
                     </div>
-                    @endif
 
                     <div style="border-top:2px dashed #f3f4f6;padding-top:14px;display:flex;justify-content:space-between;align-items:center;">
                         <span style="font-size:16px;font-weight:900;color:#111;">Total</span>
@@ -220,4 +218,102 @@
     .cart-layout { grid-template-columns: 1fr 380px !important; }
 }
 </style>
+
+@push('scripts')
+<script>
+let _cartUpdateTimers = {};
+
+window.forceAdjustQty = function(cartItemId, delta) {
+    const qtyEl = document.getElementById(`qty-${cartItemId}`);
+    if (!qtyEl) return;
+    
+    let currentQty = parseInt(qtyEl.getAttribute('data-qty') || qtyEl.textContent);
+    let newQty = currentQty + delta;
+    
+    if (newQty < 1) {
+        window.forceRemoveItem(cartItemId);
+        return;
+    }
+    
+    qtyEl.setAttribute('data-qty', newQty);
+    qtyEl.textContent = newQty;
+    
+    if (_cartUpdateTimers[cartItemId]) clearTimeout(_cartUpdateTimers[cartItemId]);
+    
+    _cartUpdateTimers[cartItemId] = setTimeout(() => {
+        document.body.style.cursor = 'wait';
+        fetch(`/cart/update/${cartItemId}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({ quantity: newQty }),
+        })
+        .then(r => r.json())
+        .then(data => {
+            document.body.style.cursor = 'default';
+            if (data.success) {
+                // Update badge globally
+                if (window.updateCartBadge) window.updateCartBadge(data.cart_count);
+                ['cart-count', 'mobile-cart-badge'].forEach(id => {
+                    let el = document.getElementById(id);
+                    if (el) el.textContent = data.cart_count;
+                });
+
+                // Update item subtotal
+                let itemSub = document.getElementById(`subtotal-${cartItemId}`);
+                if (itemSub) itemSub.textContent = data.currency_symbol + data.item_subtotal;
+                
+                // Update Order Summary NATIVELY instead of page reload
+                let sumSub = document.getElementById('summary-subtotal');
+                if (sumSub) sumSub.textContent = data.currency_symbol + data.cart_subtotal;
+                
+                let sumDis = document.getElementById('summary-discount');
+                if (sumDis) sumDis.textContent = '−' + data.currency_symbol + data.cart_discount;
+                
+                let sumShip = document.getElementById('summary-shipping');
+                if (sumShip) {
+                    sumShip.innerHTML = data.shipping_raw == 0 
+                        ? '<span style="color:#16a34a;font-weight:800;">FREE 🚚</span>' 
+                        : (data.currency_symbol + data.cart_shipping);
+                }
+                
+                let sumTot = document.getElementById('summary-total');
+                if (sumTot) sumTot.textContent = data.currency_symbol + data.cart_total;
+                
+                let shipAlert = document.getElementById('shipping-alert-box');
+                let shipGap = document.getElementById('shipping-gap-amount');
+                if (shipAlert && shipGap) {
+                    if (data.threshold_gap > 0 && data.shipping_raw > 0) {
+                        shipAlert.style.display = 'block';
+                        shipGap.textContent = data.currency_symbol + data.threshold_gap;
+                    } else {
+                        shipAlert.style.display = 'none';
+                    }
+                }
+            } else {
+                if(window.showToast) window.showToast(data.message, 'error');
+            }
+        }).catch(() => { document.body.style.cursor = 'default'; });
+    }, 600);
+};
+
+window.forceRemoveItem = function(cartItemId) {
+    document.body.style.cursor = 'wait';
+    fetch(`/cart/remove/${cartItemId}`, {
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'Accept': 'application/json',
+        },
+    })
+    .then(r => r.json())
+    .then(data => {
+        window.location.href = window.location.pathname + '?v=' + Date.now();
+    }).catch(() => { document.body.style.cursor = 'default'; });
+};
+</script>
+@endpush
 @endsection

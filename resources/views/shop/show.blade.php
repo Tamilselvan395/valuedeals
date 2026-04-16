@@ -219,6 +219,13 @@ function adjustQty(delta) {
     if (!input) return;
     input.value = Math.max(1, Math.min(parseInt(input.max), parseInt(input.value) + delta));
 }
+function forceCartBadgeUpdate(count) {
+    ['cart-count', 'mobile-cart-badge'].forEach(id => {
+        let el = document.getElementById(id);
+        if (el) el.textContent = count;
+    });
+}
+
 function addToCartAndSetup(productId) {
     const qty = document.getElementById('qty')?.value || 1;
     document.body.style.cursor = 'wait';
@@ -238,36 +245,45 @@ function addToCartAndSetup(productId) {
                 c2.setAttribute('data-cart-item-id', data.cart_item_id);
                 c2.setAttribute('data-current-qty', data.new_quantity);
             }
-            if(window.updateCartBadge) window.updateCartBadge(data.cart_count);
+            forceCartBadgeUpdate(data.cart_count);
             if(window.showToast) window.showToast(data.message, 'success');
         } else { if(window.showToast) window.showToast(data.message, 'error'); }
     }).catch(() => document.body.style.cursor = 'default');
 }
+let _detailUpdateTimer = null;
 function liveUpdateQty(delta) {
     const c2 = document.getElementById('ui-live-update');
     const c1 = document.getElementById('ui-add-to-cart');
     const cartItemId = c2.getAttribute('data-cart-item-id');
     const currentQty = parseInt(c2.getAttribute('data-current-qty'));
     const newQty = currentQty + delta;
-    document.body.style.cursor = 'wait';
-    fetch(`/cart/update/${cartItemId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content, 'Accept': 'application/json' },
-        body: JSON.stringify({ quantity: newQty }),
-    }).then(r => r.json()).then(data => {
-        document.body.style.cursor = 'default';
-        if (data.success) {
-            if (newQty <= 0) {
-                if (c2) { c2.classList.remove('block'); c2.classList.add('hidden'); }
-                if (c1) { c1.classList.remove('hidden'); c1.classList.add('block'); }
-                document.getElementById('qty').value = 1;
-            } else {
-                document.getElementById('detail-live-qty').innerText = newQty + ' in cart';
-                c2.setAttribute('data-current-qty', newQty);
-            }
-            if(window.updateCartBadge) window.updateCartBadge(data.cart_count);
-        } else { if(window.showToast) window.showToast(data.message, 'error'); }
-    }).catch(() => document.body.style.cursor = 'default');
+    
+    // Visually update immediately
+    if (newQty <= 0) {
+        if (c2) { c2.classList.remove('block'); c2.classList.add('hidden'); }
+        if (c1) { c1.classList.remove('hidden'); c1.classList.add('block'); }
+        document.getElementById('qty').value = 1;
+        c2.setAttribute('data-current-qty', 0);
+    } else {
+        document.getElementById('detail-live-qty').innerText = newQty + ' in cart';
+        c2.setAttribute('data-current-qty', newQty);
+    }
+
+    if (_detailUpdateTimer) clearTimeout(_detailUpdateTimer);
+
+    _detailUpdateTimer = setTimeout(() => {
+        document.body.style.cursor = 'wait';
+        fetch(`/cart/update/${cartItemId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content, 'Accept': 'application/json' },
+            body: JSON.stringify({ quantity: newQty }),
+        }).then(r => r.json()).then(data => {
+            document.body.style.cursor = 'default';
+            if (data.success) {
+                forceCartBadgeUpdate(data.cart_count);
+            } else { if(window.showToast) window.showToast(data.message, 'error'); }
+        }).catch(() => document.body.style.cursor = 'default');
+    }, 600);
 }
 </script>
 @endpush
