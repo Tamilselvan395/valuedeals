@@ -26,7 +26,7 @@ return new class extends Migration
             $table->text('shipping_address');
             $table->string('shipping_city');
             $table->string('shipping_state')->nullable();
-            $table->string('shipping_pincode');
+            $table->string('shipping_pincode')->nullable();
             $table->string('shipping_country')->default('UAE');
             $table->text('notes')->nullable();
             $table->timestamps();

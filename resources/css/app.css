@@ -3,8 +3,14 @@
 @tailwind utilities;
 
 @layer base {
+    html {
+        font-size: 19px; /* Scaled up from 15px to match 125% zoom appearance at 100% zoom */
+    }
     body {
         font-family: 'Inter', sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        line-height: 1.5;
     }
     .font-playfair {
         font-family: 'Playfair Display', serif;

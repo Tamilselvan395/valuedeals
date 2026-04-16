@@ -26,7 +26,7 @@ class ShopController extends Controller
 
     private function renderShop(Request $request, $categorySlug = null, $tagSlug = null)
     {
-        $query = Product::active()->inStock()->with(['images', 'category']);
+        $query = Product::active()->with(['images', 'category']);
 
         if ($search = $request->input('search')) {
             $query->where(function ($q) use ($search) {

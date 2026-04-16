@@ -44,9 +44,33 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
+    /**
+     * Generate a unique order number in the format: VD-YYYYMMDD-XXX
+     *
+     * - VD        = ValueDeals prefix
+     * - YYYYMMDD  = today's date
+     * - XXX       = daily running counter (001, 002, 003…), resets every day
+     *
+     * Must be called inside a DB transaction — lockForUpdate() prevents
+     * duplicate numbers under concurrent requests.
+     */
     public static function generateOrderNumber(): string
     {
-        return 'BS-' . strtoupper(uniqid());
+        $today  = now()->format('Ymd');
+        $prefix = "VD-{$today}-";
+
+        // Lock the latest today's order so concurrent requests queue up
+        $last = static::query()
+            ->where('order_number', 'like', $prefix . '%')
+            ->lockForUpdate()
+            ->orderByDesc('order_number')
+            ->value('order_number');
+
+        $sequence = $last
+            ? (int) substr($last, strlen($prefix)) + 1
+            : 1;
+
+        return $prefix . str_pad((string) $sequence, 3, '0', STR_PAD_LEFT);
     }
 
     public function getStatusBadgeColorAttribute(): string

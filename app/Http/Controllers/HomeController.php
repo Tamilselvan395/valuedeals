@@ -13,10 +13,10 @@ class HomeController extends Controller
 
     public function index()
     {
-        $featuredProducts = Product::active()->inStock()->featured()
+        $featuredProducts = Product::active()->featured()
             ->with(['images', 'category'])->latest()->take(8)->get();
 
-        $newArrivals = Product::active()->inStock()
+        $newArrivals = Product::active()
             ->with(['images', 'category'])->latest()->take(8)->get();
 
         $categories = Category::where('is_active', true)

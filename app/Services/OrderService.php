@@ -29,7 +29,7 @@ class OrderService
             );
         }
 
-        $order = DB::transaction(function () use ($request, $cart, $paymentMethod) {
+        $order = DB::transaction(function () use ($data, $cart, $paymentMethod) {
             $subtotal = $this->cartService->getCartTotal();
             $coupon   = $this->cartService->getAppliedCoupon();
             $discount = round(min($this->cartService->getCouponDiscount($subtotal), $subtotal), 2);
